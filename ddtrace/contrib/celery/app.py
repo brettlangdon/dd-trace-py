@@ -8,7 +8,7 @@ import wrapt
 from ddtrace import Pin
 from ...ext import celery as celeryx
 from .task import patch_task
-from .util import with_pin
+from .util import require_pin
 
 
 def patch_app(app, pin=None):
@@ -35,7 +35,7 @@ def patch_app(app, pin=None):
     return app
 
 
-@with_pin
+@require_pin
 def _app_task(pin, func, app, args, kwargs):
     task = func(*args, **kwargs)
 

@@ -3,8 +3,8 @@ import wrapt
 
 # Project
 from ddtrace import Pin
-from ...ext import celery as celeryx
-from .util import with_pin
+from ...ext import celery as celeryx, errors
+from .util import meta_from_context, require_pin
 
 
 def patch_task(task, pin=None):
@@ -45,19 +45,48 @@ def _task_init(func, task, args, kwargs):
         patch_task(task, pin=pin)
 
 
-@with_pin
+@require_pin
 def _task_run(pin, func, task, args, kwargs):
-    with pin.tracer.trace(celeryx.TASK_RUN, service=pin.service, resource=task.name):
+    with pin.tracer.trace(celeryx.TASK_RUN, service=pin.service, resource=task.name) as span:
+        # Set meta data from task request
+        span.set_metas(meta_from_context(task.request))
+
+        # Call original `run` function
         return func(*args, **kwargs)
 
 
-@with_pin
+@require_pin
 def _task_apply(pin, func, task, args, kwargs):
-    with pin.tracer.trace(celeryx.TASK_APPLY, resource=task.name):
-        return func(*args, **kwargs)
+    with pin.tracer.trace(celeryx.TASK_APPLY, resource=task.name) as span:
+        # Call the original `apply` function
+        res = func(*args, **kwargs)
+
+        # Set meta data from response
+        span.set_meta('id', res.id)
+        span.set_meta('state', res.state)
+        if res.traceback:
+            span.error = 1
+            span.set_meta(errors.STACK, res.traceback)
+        return res
 
 
-@with_pin
+@require_pin
 def _task_apply_async(pin, func, task, args, kwargs):
-    with pin.tracer.trace(celeryx.TASK_APPLY_ASYNC, resource=task.name):
-        return func(*args, **kwargs)
+    with pin.tracer.trace(celeryx.TASK_APPLY_ASYNC, resource=task.name) as span:
+        # Extract meta data from `kwargs`
+        meta_keys = (
+            'compression', 'countdown', 'eta', 'exchange', 'expires',
+            'priority', 'routing_key', 'serializer', 'queue',
+        )
+        for name in meta_keys:
+            if name in kwargs:
+                span.set_meta(name, kwargs[name])
+
+        # Call the original `apply_async` function
+        res = func(*args, **kwargs)
+
+        # Set meta data from response
+        # DEV: Calling `res.traceback` or `res.state` will make an
+        #   API call to the backend for the properties
+        span.set_meta('id', res.id)
+        return res
