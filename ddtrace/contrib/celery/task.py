@@ -36,6 +36,30 @@ def patch_task(task, pin=None):
     return task
 
 
+def unpatch_task(task):
+    """ unpatch_task will remove tracing from a celery task """
+    patched_methods = [
+        '__init__',
+        'run',
+        'apply',
+        'apply_async',
+    ]
+    for method_name in patched_methods:
+        # Get wrapped method
+        wrapper = getattr(task, method_name, None)
+        if wrapper is None:
+            continue
+
+        # Only unpatch if wrapper is an `ObjectProxy`
+        if not isinstance(wrapper, wrapt.ObjectProxy):
+            continue
+
+        # Restore original method
+        setattr(task, method_name, wrapper.__wrapped__)
+
+    return task
+
+
 def _task_init(func, task, args, kwargs):
     func(*args, **kwargs)
 
