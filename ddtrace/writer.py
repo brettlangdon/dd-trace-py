@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 MAX_TRACES = 1000
 MAX_SERVICES = 1000
 
-DEFAULT_TIMEOUT = 10
+DEFAULT_TIMEOUT = 5
 
 
 class AgentWriter(object):
@@ -77,6 +77,21 @@ class AsyncWorker(object):
                 self._thread.start()
                 atexit.register(self._on_shutdown)
 
+    def stop(self):
+        """
+        Close the trace queue so that the worker will stop the execution
+        """
+        with self._lock:
+            if self._thread and self.is_alive():
+                self._trace_queue.close()
+
+    def join(self, timeout=2):
+        """
+        Wait for the AsyncWorker execution. This call doesn't block the execution
+        and it has a 2 seconds of timeout by default.
+        """
+        self._thread.join(timeout)
+
     def _on_shutdown(self):
         with self._lock:
             if not self._thread:
@@ -89,7 +104,8 @@ class AsyncWorker(object):
             size = self._trace_queue.size()
             if size:
                 key = "ctrl-break" if os.name == 'nt' else 'ctrl-c'
-                print("Waiting for traces to be sent. Hit %s to quit." % key)
+                log.debug("Waiting %ss for traces to be sent. Hit %s to quit.",
+                        self._shutdown_timeout, key)
                 timeout = time.time() + self._shutdown_timeout
                 while time.time() < timeout and self._trace_queue.size():
                     # FIXME[matt] replace with a queue join
@@ -120,10 +136,10 @@ class AsyncWorker(object):
 
 
 class Q(object):
-    """ Q is a threadsafe queue that let's you pop everything at once and
-        will randomly overrwrite elements when it's over the max size.
     """
-
+    Q is a threadsafe queue that let's you pop everything at once and
+    will randomly overwrite elements when it's over the max size.
+    """
     def __init__(self, max_size=1000):
         self._things = []
         self._lock = threading.Lock()
@@ -147,7 +163,7 @@ class Q(object):
             if self._closed:
                 return False
 
-            if len(self._things) < self._max_size:
+            if len(self._things) < self._max_size or self._max_size <= 0:
                 self._things.append(thing)
                 return True
             else:
