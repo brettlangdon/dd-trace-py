@@ -12,7 +12,7 @@ from ddtrace.contrib.psycopg import connection_factory
 
 # testing
 from tests.contrib.config import POSTGRES_CONFIG
-from tests.test_tracer import get_test_tracer
+from tests.test_tracer import get_dummy_tracer
 from ddtrace.contrib.psycopg import patch_conn
 
 
@@ -72,14 +72,21 @@ def assert_conn_is_traced(tracer, db, service):
     eq_(span.meta["out.port"], TEST_PORT)
     eq_(span.span_type, "sql")
 
+
 def test_manual_wrap():
     conn = psycopg2.connect(**POSTGRES_CONFIG)
-    tracer = get_test_tracer()
+    tracer = get_dummy_tracer()
     wrapped = patch_conn(conn, service="foo", tracer=tracer)
     assert_conn_is_traced(tracer, wrapped, "foo")
+    # ensure we have the service types
+    services = tracer.writer.pop_services()
+    expected = {
+        "foo": {"app":"postgres", "app_type":"db"},
+    }
+    eq_(services, expected)
 
 def test_disabled_execute():
-    tracer = get_test_tracer()
+    tracer = get_dummy_tracer()
     conn = patch_conn(
         psycopg2.connect(**POSTGRES_CONFIG),
         service="foo",
@@ -90,10 +97,9 @@ def test_disabled_execute():
     conn.cursor().execute("select 'blah'")
     assert not tracer.writer.pop()
 
-
 def test_manual_wrap_extension_types():
     conn = psycopg2.connect(**POSTGRES_CONFIG)
-    tracer = get_test_tracer()
+    tracer = get_dummy_tracer()
     wrapped = patch_conn(conn, service="foo", tracer=tracer)
     # NOTE: this will crash if it doesn't work.
     #   _ext.register_type(_ext.UUID, conn_or_curs)
@@ -101,7 +107,7 @@ def test_manual_wrap_extension_types():
     extras.register_uuid(conn_or_curs=wrapped)
 
 def test_connect_factory():
-    tracer = get_test_tracer()
+    tracer = get_dummy_tracer()
 
     services = ["db", "another"]
     for service in services:

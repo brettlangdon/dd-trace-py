@@ -25,3 +25,8 @@ def test_cant_pin():
 
 def test_none():
     assert None is Pin.get_from(None)
+
+def test_repr():
+    p = Pin(service="abc")
+    assert p.service == "abc"
+    assert 'abc' in str(p)
