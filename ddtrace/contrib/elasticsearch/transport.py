@@ -1,14 +1,18 @@
+import json
+
 from elasticsearch import Transport
 
 from .quantize import quantize
 from . import metadata
-from ...compat import json, urlencode
+from ...compat import urlencode
 from ...ext import AppTypes
+from ...util import deprecated
 
 DEFAULT_SERVICE = 'elasticsearch'
 SPAN_TYPE = 'elasticsearch'
 
 
+@deprecated(message='Use patching instead (see the docs).', version='0.6.0')
 def get_traced_transport(datadog_tracer, datadog_service=DEFAULT_SERVICE):
 
     datadog_tracer.set_service_info(

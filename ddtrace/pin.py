@@ -1,8 +1,6 @@
-
 import logging
 
 import ddtrace
-
 
 log = logging.getLogger(__name__)
 
@@ -14,17 +12,30 @@ class Pin(object):
         database clusters clusters.
 
         >>> conn = sqlite.connect("/tmp/user.db")
-        >>> pin = Pin.get_from(conn)
-        >>> if pin:
-                pin.service = "user-db"
-                pin.onto(conn)
+        >>> # Override a pin for a specific connection
+        >>> pin = Pin.override(conn, service="user-db")
         >>> conn = sqlite.connect("/tmp/image.db")
-        >>> pin = Pin.get_from(conn)
-        >>> if pin:
-                pin.service = "image-db"
-                pin.onto(conn)
-
     """
+
+    __slots__ = ['app', 'app_type', 'service', 'tags', 'tracer', '_initialized']
+
+    def __init__(self, service, app=None, app_type=None, tags=None, tracer=None):
+        tracer = tracer or ddtrace.tracer
+        self.service = service
+        self.app = app
+        self.app_type = app_type
+        self.tags = tags
+        self.tracer = tracer
+        self._initialized = True
+
+    def __setattr__(self, name, value):
+        if hasattr(self, '_initialized'):
+            raise AttributeError("can't mutate a pin, use override() or clone() instead")
+        super(Pin, self).__setattr__(name, value)
+
+    def __repr__(self):
+        return "Pin(service=%s, app=%s, app_type=%s, tags=%s, tracer=%s)" % (
+            self.service, self.app, self.app_type, self.tags, self.tracer)
 
     @staticmethod
     def get_from(obj):
@@ -36,17 +47,30 @@ class Pin(object):
             return obj.__getddpin__()
         return getattr(obj, '_datadog_pin', None)
 
-    def __init__(self, service, app=None, app_type=None, tracer=None, tags=None):
-        self.service = service      # the internal name of a system
-        self.app = app              # the 'product' name of a software (e.g postgres)
-        self.tags = tags            # some tags on this instance.
-        self.app_type = app_type    # db, web, etc
+    @classmethod
+    def override(cls, obj, service=None, app=None, app_type=None, tags=None, tracer=None):
+        """Override an object with the given attributes.
 
-        # the name of the operation we're measuring (rarely used)
-        self.name = None
-        # optionally specify an alternate tracer to use. this will
-        # mostly be used by tests.
-        self.tracer = tracer or ddtrace.tracer
+        That's the recommended way to customize an already instrumented client, without
+        losing existing attributes.
+
+        >>> conn = sqlite.connect("/tmp/user.db")
+        >>> # Override a pin for a specific connection
+        >>> pin = Pin.override(conn, service="user-db")
+        """
+        if not obj:
+            return
+
+        pin = cls.get_from(obj)
+        if not pin:
+            pin = Pin(service)
+
+        pin.clone(
+            service=service,
+            app=app,
+            app_type=app_type,
+            tags=tags,
+            tracer=tracer).onto(obj)
 
     def enabled(self):
         """ Return true if this pin's tracer is enabled. """
@@ -71,18 +95,23 @@ class Pin(object):
                 return obj.__setddpin__(self)
             return setattr(obj, '_datadog_pin', self)
         except AttributeError:
-            log.warn("can't pin onto object", exc_info=True)
+            log.warn("can't pin onto object. skipping", exc_info=True)
+
+    def clone(self, service=None, app=None, app_type=None, tags=None, tracer=None):
+        """ Return a clone of the pin with the given attributes replaced. """
+        if not tags and self.tags:
+            # do a shallow copy of the tags if needed.
+            tags = {k:v for k, v in self.tags.items()}
+
+        return Pin(
+            service=service or self.service,
+            app=app or self.app,
+            app_type=app_type or self.app_type,
+            tags=tags,
+            tracer=tracer or self.tracer) # no copy of the tracer
 
     def _send(self):
         self.tracer.set_service_info(
             service=self.service,
             app=self.app,
             app_type=self.app_type)
-
-    def __repr__(self):
-        return "Pin(service:%s,app:%s,app_type:%s,name:%s)" % (
-            self.service,
-            self.app,
-            self.app_type,
-            self.name)
-

@@ -8,11 +8,11 @@ import pylibmc
 from nose.tools import eq_
 
 # project
-from ddtrace import Tracer, Pin
+from ddtrace import Pin
 from ddtrace.ext import memcached
 from ddtrace.contrib.pylibmc import TracedClient
 from ddtrace.contrib.pylibmc.patch import patch, unpatch
-from tests.test_tracer import DummyWriter
+from tests.test_tracer import get_dummy_tracer
 from tests.contrib.config import MEMCACHED_CONFIG as cfg
 
 
@@ -172,8 +172,7 @@ class TestPylibmcLegacy(PylibmcCore):
         raw_client = pylibmc.Client([url])
         raw_client.flush_all()
 
-        tracer = Tracer()
-        tracer.writer = DummyWriter()
+        tracer = get_dummy_tracer()
 
         client = TracedClient(raw_client, tracer=tracer, service=self.TEST_SERVICE)
         return client, tracer
@@ -193,9 +192,8 @@ class TestPylibmcPatchDefault(PylibmcCore):
         client = pylibmc.Client([url])
         client.flush_all()
 
-        tracer = Tracer()
-        tracer.writer = DummyWriter()
-        Pin.get_from(client).tracer = tracer
+        tracer = get_dummy_tracer()
+        Pin.get_from(client).clone(tracer=tracer).onto(client)
 
         return client, tracer
 
@@ -207,6 +205,47 @@ class TestPylibmcPatch(TestPylibmcPatchDefault):
     def get_client(self):
         client, tracer = TestPylibmcPatchDefault.get_client(self)
 
-        Pin.get_from(client).service = self.TEST_SERVICE
+        Pin.get_from(client).clone(service=self.TEST_SERVICE).onto(client)
 
         return client, tracer
+
+    def test_patch_unpatch(self):
+        tracer = get_dummy_tracer()
+        writer = tracer.writer
+        url = "%s:%s" % (cfg["host"], cfg["port"])
+
+        # Test patch idempotence
+        patch()
+        patch()
+
+        client = pylibmc.Client([url])
+        Pin.get_from(client).clone(
+            service=self.TEST_SERVICE,
+            tracer=tracer).onto(client)
+
+        client.set("a", 1)
+
+        spans = writer.pop()
+        assert spans, spans
+        eq_(len(spans), 1)
+
+        # Test unpatch
+        unpatch()
+
+        client = pylibmc.Client([url])
+        client.set("a", 1)
+
+        spans = writer.pop()
+        assert not spans, spans
+
+        # Test patch again
+        patch()
+
+        client = pylibmc.Client([url])
+        Pin(service=self.TEST_SERVICE, tracer=tracer).onto(client)
+        client.set("a", 1)
+
+        spans = writer.pop()
+        assert spans, spans
+        eq_(len(spans), 1)
+

@@ -1,7 +1,7 @@
 
 # 3p
-import wrapt
 import redis
+import wrapt
 
 # project
 from ddtrace import Pin
@@ -10,42 +10,49 @@ from .util import format_command_args, _extract_conn_tags
 
 
 def patch():
-    """ patch will patch the redis library to add tracing. """
-    patch_client(redis.Redis)
-    patch_client(redis.StrictRedis)
+    """Patch the instrumented methods
 
-def patch_client(client, pin=None):
-    """ patch_instance will add tracing to the given redis client. It works on
-        instances or classes of redis.Redis and redis.StrictRedis.
+    This duplicated doesn't look nice. The nicer alternative is to use an ObjectProxy on top
+    of Redis and StrictRedis. However, it means that any "import redis.Redis" won't be instrumented.
     """
-    pin = pin or Pin(service="redis", app="redis", app_type="db")
-    pin.onto(client)
+    if getattr(redis, '_datadog_patch', False):
+        return
+    setattr(redis, '_datadog_patch', True)
 
-    # monkeypatch all of the methods.
-    methods = [
-        ('execute_command', _execute_command),
-        ('pipeline', _pipeline),
-    ]
-    for method_name, wrapper in methods:
-        method = getattr(client, method_name, None)
-        if method is None:
-            continue
-        setattr(client, method_name, wrapt.FunctionWrapper(method, wrapper))
-    return client
+    _w = wrapt.wrap_function_wrapper
+    _w('redis', 'StrictRedis.execute_command', traced_execute_command)
+    _w('redis', 'StrictRedis.pipeline', traced_pipeline)
+    _w('redis', 'Redis.pipeline', traced_pipeline)
+    _w('redis.client', 'BasePipeline.execute', traced_execute_pipeline)
+    _w('redis.client', 'BasePipeline.immediate_execute_command', traced_execute_command)
+    Pin(service="redis", app="redis", app_type="db").onto(redis.StrictRedis)
+
+def unpatch():
+    if getattr(redis, '_datadog_patch', False):
+        setattr(redis, '_datadog_patch', False)
+        _unwrap(redis.StrictRedis, 'execute_command')
+        _unwrap(redis.StrictRedis, 'pipeline')
+        _unwrap(redis.Redis, 'pipeline')
+        _unwrap(redis.client.BasePipeline, 'execute')
+        _unwrap(redis.client.BasePipeline, 'immediate_execute_command')
+
+
+def _unwrap(obj, attr):
+    f = getattr(obj, attr, None)
+    if f and isinstance(f, wrapt.ObjectProxy) and hasattr(f, '__wrapped__'):
+        setattr(obj, attr, f.__wrapped__)
+
 
 #
 # tracing functions
 #
 
-def _execute_command(func, instance, args, kwargs):
+def traced_execute_command(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    service = pin.service
-    tracer = pin.tracer
-
-    with tracer.trace('redis.command', service=service, span_type='redis') as s:
+    with pin.tracer.trace('redis.command', service=pin.service, span_type='redis') as s:
         query = format_command_args(args)
         s.resource = query
         s.set_tag(redisx.RAWCMD, query)
@@ -56,26 +63,18 @@ def _execute_command(func, instance, args, kwargs):
         # run the command
         return func(*args, **kwargs)
 
-def _pipeline(func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
-        return func(*args, **kwargs)
-    # create the pipeline and monkeypatch it
+def traced_pipeline(func, instance, args, kwargs):
     pipeline = func(*args, **kwargs)
-    pin.onto(pipeline)
-    setattr(
-        pipeline,
-        'execute', wrapt.FunctionWrapper(pipeline.execute, _execute_pipeline))
-    setattr(
-        pipeline,
-        'immediate_execute_command',
-        wrapt.FunctionWrapper(pipeline.immediate_execute_command, _execute_command))
+    pin = Pin.get_from(instance)
+    if pin:
+        pin.onto(pipeline)
     return pipeline
 
-def _execute_pipeline(func, instance, args, kwargs):
+def traced_execute_pipeline(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
+
     # FIXME[matt] done in the agent. worth it?
     cmds = [format_command_args(c) for c, _ in instance.command_stack]
     resource = '\n'.join(cmds)

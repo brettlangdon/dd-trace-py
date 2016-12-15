@@ -35,12 +35,13 @@ class TracedClient(ObjectProxy):
             # We are in the patched situation, just pass down all arguments to the pylibmc.Client
             # Note that, in that case, client isn't a real client (just the first argument)
             client = _Client(client, *args, **kwargs)
+        else:
+            log.warning("TracedClient instantiation is deprecated and will be remove "
+                        "in future versions (0.6.0). Use patching instead (see the docs).")
 
         super(TracedClient, self).__init__(client)
 
-        pin = ddtrace.Pin(service)
-        if tracer:
-            pin.tracer = tracer
+        pin = ddtrace.Pin(service=service, tracer=tracer)
         pin.onto(self)
 
         # attempt to collect the pool of urls this client talks to
@@ -62,8 +63,9 @@ class TracedClient(ObjectProxy):
         # rewrap new connections.
         cloned = self.__wrapped__.clone(*args, **kwargs)
         traced_client = TracedClient(cloned)
-        self_pin = ddtrace.Pin.get_from(self)
-        ddtrace.Pin(self_pin.service, tracer=self_pin.tracer).onto(traced_client)
+        pin = ddtrace.Pin.get_from(self)
+        if pin:
+            pin.clone().onto(traced_client)
         return traced_client
 
     def get(self, *args, **kwargs):

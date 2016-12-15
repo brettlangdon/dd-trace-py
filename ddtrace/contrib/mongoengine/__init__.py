@@ -1,22 +1,21 @@
+"""Instrument mongoengine to report MongoDB queries.
+
+``patch_all`` will automatically patch your mongoengine connect method to make it work.
+::
+
+    from ddtrace import Pin, patch
+    import mongoengine
+
+    # If not patched yet, you can patch mongoengine specifically
+    patch(mongoengine=True)
+
+    # At that point, mongoengine is instrumented with the default settings
+    mongoengine.connect('db', alias='default')
+
+    # Use a pin to specify metadata related to this client
+    client = mongoengine.connect('db', alias='master')
+    Pin.override(client, service="mongo-master")
 """
-To trace mongoengine queries, we patch its connect method::
-
-    # to patch all mongoengine connections, do the following
-    # before you import mongoengine yourself.
-
-    from ddtrace import tracer
-    from ddtrace.contrib.mongoengine import trace_mongoengine
-    trace_mongoengine(tracer, service="my-mongo-db", patch=True)
-
-
-    # to patch a single mongoengine connection, do this:
-    connect = trace_mongoengine(tracer, service="my-mongo-db", patch=False)
-    connect()
-
-    # now use mongoengine ....
-    User.objects(name="Mongo")
-"""
-
 
 from ..util import require_modules
 
@@ -25,6 +24,8 @@ required_modules = ['mongoengine']
 
 with require_modules(required_modules) as missing_modules:
     if not missing_modules:
-        from .trace import trace_mongoengine
+        from .patch import patch, trace_mongoengine
 
-        __all__ = ['trace_mongoengine']
+        __all__ = ['patch', 'trace_mongoengine']
+
+
