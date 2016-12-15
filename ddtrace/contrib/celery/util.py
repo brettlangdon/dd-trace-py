@@ -1,6 +1,10 @@
 # Project
 from ddtrace import Pin
 
+# Service info
+APP = 'celery'
+SERVICE = 'celery'
+
 
 def meta_from_context(context):
     meta_keys = (

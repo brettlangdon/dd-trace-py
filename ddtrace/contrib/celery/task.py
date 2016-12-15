@@ -3,13 +3,18 @@ import wrapt
 
 # Project
 from ddtrace import Pin
-from ...ext import celery as celeryx, errors
-from .util import meta_from_context, require_pin
+from ...ext import celery as errors
+from .util import APP, SERVICE, meta_from_context, require_pin
+
+# Task operations
+TASK_APPLY = 'celery.task.apply'
+TASK_APPLY_ASYNC = 'celery.task.apply_async'
+TASK_RUN = 'celery.task.run'
 
 
 def patch_task(task, pin=None):
     """ patch_task will add tracing to a celery task """
-    pin = pin or Pin(service=celeryx.SERVICE, app=celeryx.APP)
+    pin = pin or Pin(service=SERVICE, app=APP)
 
     patch_methods = [
         ('__init__', _task_init),
@@ -71,7 +76,7 @@ def _task_init(func, task, args, kwargs):
 
 @require_pin
 def _task_run(pin, func, task, args, kwargs):
-    with pin.tracer.trace(celeryx.TASK_RUN, service=pin.service, resource=task.name) as span:
+    with pin.tracer.trace(TASK_RUN, service=pin.service, resource=task.name) as span:
         # Set meta data from task request
         span.set_metas(meta_from_context(task.request))
 
@@ -81,7 +86,7 @@ def _task_run(pin, func, task, args, kwargs):
 
 @require_pin
 def _task_apply(pin, func, task, args, kwargs):
-    with pin.tracer.trace(celeryx.TASK_APPLY, resource=task.name) as span:
+    with pin.tracer.trace(TASK_APPLY, resource=task.name) as span:
         # Call the original `apply` function
         res = func(*args, **kwargs)
 
@@ -96,7 +101,7 @@ def _task_apply(pin, func, task, args, kwargs):
 
 @require_pin
 def _task_apply_async(pin, func, task, args, kwargs):
-    with pin.tracer.trace(celeryx.TASK_APPLY_ASYNC, resource=task.name) as span:
+    with pin.tracer.trace(TASK_APPLY_ASYNC, resource=task.name) as span:
         # Extract meta data from `kwargs`
         meta_keys = (
             'compression', 'countdown', 'eta', 'exchange', 'expires',
