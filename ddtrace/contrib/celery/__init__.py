@@ -24,7 +24,6 @@ Patch the celery library to trace task method calls::
 You may also manually patch celery apps or tasks for tracing::
 
     import celery
-    from ddtrace import Pin
     from ddtrace.contrib.celery import patch_app, patch_task
 
     app = celery.Celery()
