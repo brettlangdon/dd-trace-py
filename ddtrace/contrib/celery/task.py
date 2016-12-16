@@ -3,7 +3,7 @@ import wrapt
 
 # Project
 from ddtrace import Pin
-from ...ext import celery as errors
+from ...ext import errors
 from .util import APP, SERVICE, meta_from_context, require_pin
 
 # Task operations
