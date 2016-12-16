@@ -7,6 +7,7 @@ SERVICE = 'celery'
 
 
 def meta_from_context(context):
+    """ helper to extract meta values from a celery context """
     meta_keys = (
         'called_directly', 'correlation_id', 'delivery_info', 'eta', 'expires', 'hostname',
         'id', 'is_eager', 'reply_to', 'retries', 'task', 'timelimit', 'utc',
