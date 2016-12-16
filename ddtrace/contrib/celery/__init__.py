@@ -1,4 +1,9 @@
 """
+Supported versions:
+
+- Celery 3.1.x
+- Celery 4.0.x
+
 Patch the celery library to trace task method calls::
 
     import celery
