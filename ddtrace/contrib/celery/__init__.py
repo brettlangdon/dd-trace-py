@@ -34,6 +34,8 @@ You may also manually patch celery apps or tasks for tracing::
     def my_task():
         pass
 
+    # We don't have to patch this task since we patched `app`,
+    # but we could patch a single task like this if we wanted to
     my_task = patch_task(my_task)
 
 
