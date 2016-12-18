@@ -79,4 +79,4 @@ def _apply_response_tags(span, resp):
     if 'content-length' in resp.headers:
         span.set_tag('http.response.length', int(resp.headers['content-length']))
     if 'content-type' in resp.headers:
-        span.set_tag('http.response.type', int(resp.headers['content-type']))
+        span.set_tag('http.response.type', resp.headers['content-type'])
