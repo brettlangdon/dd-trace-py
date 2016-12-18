@@ -35,25 +35,23 @@ def _get_urlopen_wrapper(trace_name):
             return func(*args, **kwargs)
 
         with tracer.trace(trace_name, span_type=http.TYPE) as span:
-            try:
-                _apply_request_tags(span, args, kwargs)
-            except Exception:
-                log.warn('error applying request tags', exc_info=True)
-
             resp = None
             try:
                 resp = func(*args, **kwargs)
                 return resp
             finally:
                 try:
-                    _apply_response_tags(span, resp)
+                    _apply_tags(span, args, kwargs, resp)
                 except Exception:
                     log.warn('error applying response tags', exc_info=True)
 
     return _wrapped_urlopen
 
 
-def _apply_request_tags(span, args, kwargs):
+def _apply_tags(span, args, kwargs, resp):
+    if not resp:
+        return
+
     url = kwargs.get('url') or args[0]
     data = kwargs.get('data')
     if not data and len(args) > 1:
@@ -67,16 +65,6 @@ def _apply_request_tags(span, args, kwargs):
         span.set_tag(http.URL, url.get_full_url())
         span.set_tag(http.METHOD, url.get_method())
 
-
-def _apply_response_tags(span, resp):
-    if not resp:
-        return
-
     status_code = resp.getcode()
     span.set_tag(http.STATUS_CODE, status_code)
     span.error = int(500 <= status_code)
-
-    if 'content-length' in resp.headers:
-        span.set_tag('http.response.length', int(resp.headers['content-length']))
-    if 'content-type' in resp.headers:
-        span.set_tag('http.response.type', resp.headers['content-type'])
