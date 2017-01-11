@@ -110,7 +110,7 @@ class CeleryTaskTest(unittest.TestCase):
         span = spans[0]
         self.assert_items_equal(
             span.to_dict().keys(),
-            ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
+            ['service', 'resource', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
@@ -119,21 +119,7 @@ class CeleryTaskTest(unittest.TestCase):
 
         # Assert the metadata is correct
         meta = span.meta
-        self.assertDictEqual(meta, dict(
-            called_directly='True',
-            correlation_id='None',
-            delivery_info='None',
-            eta='None',
-            expires='None',
-            hostname='None',
-            id='None',
-            is_eager='False',
-            reply_to='None',
-            retries='0',
-            task='None',
-            timelimit='None',
-            utc='None',
-        ))
+        self.assertDictEqual(meta, dict())
 
     def test_task___call__(self):
         """
@@ -162,7 +148,7 @@ class CeleryTaskTest(unittest.TestCase):
         span = spans[0]
         self.assert_items_equal(
             span.to_dict().keys(),
-            ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
+            ['service', 'resource', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
@@ -171,21 +157,7 @@ class CeleryTaskTest(unittest.TestCase):
 
         # Assert the metadata is correct
         meta = span.meta
-        self.assertDictEqual(meta, dict(
-            called_directly='True',
-            correlation_id='None',
-            delivery_info='None',
-            eta='None',
-            expires='None',
-            hostname='None',
-            id='None',
-            is_eager='False',
-            reply_to='None',
-            retries='0',
-            task='None',
-            timelimit='None',
-            utc='None',
-        ))
+        self.assertDictEqual(meta, dict())
 
     def test_task_apply_async(self):
         """
@@ -247,21 +219,9 @@ class CeleryTaskTest(unittest.TestCase):
         meta = span.meta
         self.assert_items_equal(
             meta.keys(),
-            ['called_directly', 'correlation_id', 'delivery_info', 'eta', 'expires', 'hostname',
-             'id', 'is_eager', 'reply_to', 'retries', 'task', 'timelimit', 'utc']
+            ['delivery_info', 'id']
         )
-        self.assertEqual(meta['called_directly'], 'False')
-        self.assertEqual(meta['correlation_id'], 'None')
-        self.assertEqual(meta['eta'], 'None')
-        self.assertEqual(meta['expires'], 'None')
-        self.assertEqual(meta['hostname'], 'None')
         self.assertNotEqual(meta['id'], 'None')
-        self.assertEqual(meta['is_eager'], 'True')
-        self.assertEqual(meta['reply_to'], 'None')
-        self.assertEqual(meta['retries'], '0')
-        self.assertEqual(meta['task'], 'None')
-        self.assertEqual(meta['timelimit'], 'None')
-        self.assertEqual(meta['utc'], 'None')
 
         # DEV: Assert as endswith, since PY3 gives us `u'is_eager` and PY2 gives us `'is_eager'`
         self.assertTrue(meta['delivery_info'].endswith('\'is_eager\': True}'))
@@ -390,21 +350,9 @@ class CeleryTaskTest(unittest.TestCase):
         meta = span.meta
         self.assert_items_equal(
             meta.keys(),
-            ['called_directly', 'correlation_id', 'delivery_info', 'eta', 'expires', 'hostname',
-             'id', 'is_eager', 'reply_to', 'retries', 'task', 'timelimit', 'utc']
+            ['delivery_info', 'id']
         )
-        self.assertEqual(meta['called_directly'], 'False')
-        self.assertEqual(meta['correlation_id'], 'None')
-        self.assertEqual(meta['eta'], 'None')
-        self.assertEqual(meta['expires'], 'None')
-        self.assertEqual(meta['hostname'], 'None')
         self.assertNotEqual(meta['id'], 'None')
-        self.assertEqual(meta['is_eager'], 'True')
-        self.assertEqual(meta['reply_to'], 'None')
-        self.assertEqual(meta['retries'], '0')
-        self.assertEqual(meta['task'], 'None')
-        self.assertEqual(meta['timelimit'], 'None')
-        self.assertEqual(meta['utc'], 'None')
 
         # DEV: Assert as endswith, since PY3 gives us `u'is_eager` and PY2 gives us `'is_eager'`
         self.assertTrue(meta['delivery_info'].endswith('\'is_eager\': True}'))
@@ -533,21 +481,9 @@ class CeleryTaskTest(unittest.TestCase):
         meta = span.meta
         self.assert_items_equal(
             meta.keys(),
-            ['called_directly', 'correlation_id', 'delivery_info', 'eta', 'expires', 'hostname',
-             'id', 'is_eager', 'reply_to', 'retries', 'task', 'timelimit', 'utc']
+            ['delivery_info', 'id']
         )
-        self.assertEqual(meta['called_directly'], 'False')
-        self.assertEqual(meta['correlation_id'], 'None')
-        self.assertEqual(meta['eta'], 'None')
-        self.assertEqual(meta['expires'], 'None')
-        self.assertEqual(meta['hostname'], 'None')
         self.assertNotEqual(meta['id'], 'None')
-        self.assertEqual(meta['is_eager'], 'True')
-        self.assertEqual(meta['reply_to'], 'None')
-        self.assertEqual(meta['retries'], '0')
-        self.assertEqual(meta['task'], 'None')
-        self.assertEqual(meta['timelimit'], 'None')
-        self.assertEqual(meta['utc'], 'None')
 
         # DEV: Assert as endswith, since PY3 gives us `u'is_eager` and PY2 gives us `'is_eager'`
         self.assertTrue(meta['delivery_info'].endswith('\'is_eager\': True}'))

@@ -9,13 +9,28 @@ SERVICE = 'celery'
 def meta_from_context(context):
     """ helper to extract meta values from a celery context """
     meta_keys = (
-        'called_directly', 'correlation_id', 'delivery_info', 'eta', 'expires', 'hostname',
-        'id', 'is_eager', 'reply_to', 'retries', 'task', 'timelimit', 'utc',
+        'correlation_id', 'delivery_info', 'eta', 'expires', 'hostname',
+        'id', 'reply_to', 'retries', 'timelimit',
     )
 
-    return dict(
-        (name, context.get(name)) for name in meta_keys
-    )
+    meta = dict()
+    for name in meta_keys:
+        value = context.get(name)
+
+        # Skip this key if it is not set
+        if value is None:
+            continue
+
+        # Skip `timelimit` if it is not set (it's default/unset value is `(None, None)`)
+        if name == 'timelimie' and value == (None, None):
+            continue
+
+        # Skip `retries` if it's value is `0`
+        if name == 'retries' and value == 0:
+            continue
+
+        meta[name] = value
+    return meta
 
 
 def require_pin(decorated):
