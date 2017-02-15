@@ -3,6 +3,7 @@ import wrapt
 
 # Project
 from ddtrace import Pin
+from ddtrace.ext import AppTypes
 from ...ext import errors
 from .util import APP, SERVICE, meta_from_context, require_pin
 
@@ -14,7 +15,7 @@ TASK_RUN = 'celery.task.run'
 
 def patch_task(task, pin=None):
     """ patch_task will add tracing to a celery task """
-    pin = pin or Pin(service=SERVICE, app=APP)
+    pin = pin or Pin(service=SERVICE, app=APP, app_type=AppTypes.worker)
 
     patch_methods = [
         ('__init__', _task_init),
