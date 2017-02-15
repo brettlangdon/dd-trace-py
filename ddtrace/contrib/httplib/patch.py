@@ -121,7 +121,7 @@ else:
 
 
 def patch():
-    """ patch the built-in urllib/urllib2/urllib.request methods for tracing"""
+    """ patch the built-in urllib/httplib/httplib.client methods for tracing"""
     for module_name, func_name, wrapper in wrap_modules:
         wrapt.wrap_function_wrapper(module_name, func_name, wrapper)
 
