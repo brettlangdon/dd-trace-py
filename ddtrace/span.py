@@ -185,6 +185,13 @@ class Span(object):
             'error': self.error,
         }
 
+        # a common mistake is to set the error field to a boolean instead of an
+        # int. let's special case that here, because it's sure to happen in
+        # customer code.
+        err = d.get('error')
+        if err and type(err) == bool:
+            d['error'] = 1
+
         if self.start:
             d['start'] = int(self.start * 1e9)  # ns
 
@@ -254,6 +261,9 @@ class Span(object):
 
         lines.extend((" ", "%s:%s" % kv) for kv in sorted(self.meta.items()))
         return "\n".join("%10s %s" % l for l in lines)
+
+    def tracer(self):
+        return self._tracer
 
     def __enter__(self):
         return self
