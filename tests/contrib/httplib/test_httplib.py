@@ -28,7 +28,7 @@ if PY2:
 
         def test_patch(self):
             """
-            When patching urllib
+            When patching httplib
                 we patch the correct module/methods
             """
             self.assertIsInstance(httplib.HTTPConnection.putrequest, wrapt.BoundFunctionWrapper)
@@ -36,7 +36,7 @@ if PY2:
 
         def test_unpatch(self):
             """
-            When unpatching urllib
+            When unpatching httplib
                 we restore the correct module/methods
             """
             original_putrequest = httplib.HTTPConnection.putrequest.__wrapped__

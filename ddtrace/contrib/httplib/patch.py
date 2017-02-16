@@ -48,7 +48,6 @@ def _wrap_getresponse(func, instance, args, kwargs):
 
 def _wrap_putrequest(func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
-    # Use any attached tracer if available, otherwise use the global tracer
     tracer = getattr(instance, 'datadog_tracer', ddtrace.tracer)
 
     if not tracer.enabled:
