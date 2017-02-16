@@ -1,5 +1,5 @@
 """
-Patch the built-in urllib libraries to trace all HTTP calls.
+Patch the built-in httplib/urllib libraries to trace all HTTP calls.
 
 Patched modules:
 
