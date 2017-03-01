@@ -183,13 +183,12 @@ class CeleryTaskTest(unittest.TestCase):
         self.assertEqual(len(spans), 2)
 
         # Assert the first span for calling `apply`
-        span = spans[1]
+        span = spans[0]
         self.assert_items_equal(
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
-        # DEV: The service is None since `apply` is usually called from the context of another service (e.g. flask)
-        self.assertIsNone(span.service)
+        self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.apply')
         self.assertIsNone(span.parent_id)
@@ -204,7 +203,7 @@ class CeleryTaskTest(unittest.TestCase):
         self.assertEqual(meta['state'], 'SUCCESS')
 
         # Assert the celery service span for calling `run`
-        span = spans[0]
+        span = spans[1]
         self.assert_items_equal(
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
@@ -219,12 +218,12 @@ class CeleryTaskTest(unittest.TestCase):
         meta = span.meta
         self.assert_items_equal(
             meta.keys(),
-            ['delivery_info', 'id']
+            ['celery.delivery_info', 'celery.id']
         )
-        self.assertNotEqual(meta['id'], 'None')
+        self.assertNotEqual(meta['celery.id'], 'None')
 
         # DEV: Assert as endswith, since PY3 gives us `u'is_eager` and PY2 gives us `'is_eager'`
-        self.assertTrue(meta['delivery_info'].endswith('\'is_eager\': True}'))
+        self.assertTrue(meta['celery.delivery_info'].endswith('\'is_eager\': True}'))
 
     def test_task_apply(self):
         """
@@ -256,8 +255,7 @@ class CeleryTaskTest(unittest.TestCase):
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
-        # DEV: The service is None since `apply` is usually called from the context of another service (e.g. flask)
-        self.assertIsNone(span.service)
+        self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.apply_async')
         self.assertIsNone(span.parent_id)
@@ -294,13 +292,12 @@ class CeleryTaskTest(unittest.TestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 3)
 
-        span = spans[2]
+        span = spans[0]
         self.assert_items_equal(
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
-        # DEV: The service is None since `apply` is usually called from the context of another service (e.g. flask)
-        self.assertIsNone(span.service, None)
+        self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.apply_async')
         self.assertIsNone(span.parent_id)
@@ -318,8 +315,7 @@ class CeleryTaskTest(unittest.TestCase):
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
-        # DEV: The service is None since `apply` is usually called from the context of another service (e.g. flask)
-        self.assertIsNone(span.service, None)
+        self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.apply')
         self.assertEqual(span.parent_id, parent_span_id)
@@ -334,12 +330,11 @@ class CeleryTaskTest(unittest.TestCase):
         self.assertEqual(meta['state'], 'SUCCESS')
 
         # The last span emitted
-        span = spans[0]
+        span = spans[2]
         self.assert_items_equal(
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
-        # DEV: The service is None since `apply` is usually called from the context of another service (e.g. flask)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.run')
@@ -350,12 +345,12 @@ class CeleryTaskTest(unittest.TestCase):
         meta = span.meta
         self.assert_items_equal(
             meta.keys(),
-            ['delivery_info', 'id']
+            ['celery.delivery_info', 'celery.id']
         )
-        self.assertNotEqual(meta['id'], 'None')
+        self.assertNotEqual(meta['celery.id'], 'None')
 
         # DEV: Assert as endswith, since PY3 gives us `u'is_eager` and PY2 gives us `'is_eager'`
-        self.assertTrue(meta['delivery_info'].endswith('\'is_eager\': True}'))
+        self.assertTrue(meta['celery.delivery_info'].endswith('\'is_eager\': True}'))
 
     def test_task_delay(self):
         """
@@ -387,8 +382,7 @@ class CeleryTaskTest(unittest.TestCase):
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
-        # DEV: The service is None since `apply` is usually called from the context of another service (e.g. flask)
-        self.assertIsNone(span.service)
+        self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.apply_async')
         self.assertIsNone(span.parent_id)
@@ -425,13 +419,12 @@ class CeleryTaskTest(unittest.TestCase):
         spans = self.tracer.writer.pop()
         self.assertEqual(len(spans), 3)
 
-        span = spans[2]
+        span = spans[0]
         self.assert_items_equal(
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
-        # DEV: The service is None since `apply` is usually called from the context of another service (e.g. flask)
-        self.assertIsNone(span.service, None)
+        self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.apply_async')
         self.assertIsNone(span.parent_id)
@@ -449,8 +442,7 @@ class CeleryTaskTest(unittest.TestCase):
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
-        # DEV: The service is None since `apply` is usually called from the context of another service (e.g. flask)
-        self.assertIsNone(span.service, None)
+        self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.apply')
         self.assertEqual(span.parent_id, parent_span_id)
@@ -465,12 +457,11 @@ class CeleryTaskTest(unittest.TestCase):
         self.assertEqual(meta['state'], 'SUCCESS')
 
         # The last span emitted
-        span = spans[0]
+        span = spans[2]
         self.assert_items_equal(
             span.to_dict().keys(),
             ['service', 'resource', 'meta', 'name', 'parent_id', 'trace_id', 'duration', 'error', 'start', 'span_id']
         )
-        # DEV: The service is None since `apply` is usually called from the context of another service (e.g. flask)
         self.assertEqual(span.service, 'celery-test')
         self.assertEqual(span.resource, 'mock.mock.patched_task')
         self.assertEqual(span.name, 'celery.task.run')
@@ -481,9 +472,9 @@ class CeleryTaskTest(unittest.TestCase):
         meta = span.meta
         self.assert_items_equal(
             meta.keys(),
-            ['delivery_info', 'id']
+            ['celery.delivery_info', 'celery.id']
         )
-        self.assertNotEqual(meta['id'], 'None')
+        self.assertNotEqual(meta['celery.id'], 'None')
 
         # DEV: Assert as endswith, since PY3 gives us `u'is_eager` and PY2 gives us `'is_eager'`
-        self.assertTrue(meta['delivery_info'].endswith('\'is_eager\': True}'))
+        self.assertTrue(meta['celery.delivery_info'].endswith('\'is_eager\': True}'))
