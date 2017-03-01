@@ -74,6 +74,10 @@ class API(object):
         return response
 
     def _put(self, endpoint, data):
-        conn = httplib.HTTPConnection(self.hostname, self.port)
+        HTTPConnection = httplib.HTTPConnection
+        # If `httplib` tracing is enabled, then use the original/wrapped `HTTPConnection`
+        if hasattr(HTTPConnection, '__wrapped__'):
+            HTTPConnection = HTTPConnection.__wrapped__
+        conn = HTTPConnection(self.hostname, self.port)
         conn.request("PUT", endpoint, data, self._headers)
         return conn.getresponse()
