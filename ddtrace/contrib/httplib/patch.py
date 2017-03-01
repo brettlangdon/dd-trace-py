@@ -22,7 +22,8 @@ def _wrap_getresponse(func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
     tracer = getattr(instance, 'datadog_tracer', ddtrace.tracer)
 
-    if not tracer.enabled:
+    # DEV: We explicitly set the instance tracer to `None` when using HTTPConnection internally
+    if not tracer or not tracer.enabled:
         return func(*args, **kwargs)
 
     resp = None
@@ -50,7 +51,8 @@ def _wrap_putrequest(func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
     tracer = getattr(instance, 'datadog_tracer', ddtrace.tracer)
 
-    if not tracer.enabled:
+    # DEV: We explicitly set the instance tracer to `None` when using HTTPConnection internally
+    if not tracer or not tracer.enabled:
         return func(*args, **kwargs)
 
     try:

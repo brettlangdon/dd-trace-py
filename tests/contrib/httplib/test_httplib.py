@@ -207,6 +207,23 @@ if PY2:
             spans = self.tracer.writer.pop()
             self.assertEqual(len(spans), 0)
 
+        def test_httplib_request_get_tracer_is_none(self):
+            """
+            When making a GET request via httplib.HTTPConnection.request
+                when the instance tracer is `None`
+                    we do not capture any spans
+            """
+            conn = httplib.HTTPConnection('httpstat.us')
+            setattr(conn, 'datadog_tracer', None)
+            with contextlib.closing(conn):
+                conn.request('GET', '/200')
+                resp = conn.getresponse()
+                self.assertEqual(resp.read(), b'200 OK')
+                self.assertEqual(resp.status, 200)
+
+            spans = self.tracer.writer.pop()
+            self.assertEqual(len(spans), 0)
+
         def test_urllib_request(self):
             """
             When making a request via urllib.urlopen
@@ -480,6 +497,23 @@ else:
             """
             self.tracer.enabled = False
             conn = http.client.HTTPConnection('httpstat.us')
+            with contextlib.closing(conn):
+                conn.request('GET', '/200')
+                resp = conn.getresponse()
+                self.assertEqual(resp.read(), b'200 OK')
+                self.assertEqual(resp.status, 200)
+
+            spans = self.tracer.writer.pop()
+            self.assertEqual(len(spans), 0)
+
+        def test_httplib_request_get_tracer_is_none(self):
+            """
+            When making a GET request via httplib.client.HTTPConnection.request
+                when the instance tracer is `None`
+                    we do not capture any spans
+            """
+            conn = http.client.HTTPConnection('httpstat.us')
+            setattr(conn, 'datadog_tracer', None)
             with contextlib.closing(conn):
                 conn.request('GET', '/200')
                 resp = conn.getresponse()

@@ -74,10 +74,9 @@ class API(object):
         return response
 
     def _put(self, endpoint, data):
-        HTTPConnection = httplib.HTTPConnection
-        # If `httplib` tracing is enabled, then use the original/wrapped `HTTPConnection`
-        if hasattr(HTTPConnection, '__wrapped__'):
-            HTTPConnection = HTTPConnection.__wrapped__
-        conn = HTTPConnection(self.hostname, self.port)
+        conn = httplib.HTTPConnection(self.hostname, self.port)
+        # Explicitly set/override tracer to `None `to disable `httplib` tracing
+        # DEV: Otherwise we'll get into an infinite loop of tracing the tracer
+        setattr(conn, "datadog_tracer", None)
         conn.request("PUT", endpoint, data, self._headers)
         return conn.getresponse()
