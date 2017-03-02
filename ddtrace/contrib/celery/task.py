@@ -5,7 +5,8 @@ import wrapt
 from ddtrace import Pin
 from ddtrace.ext import AppTypes
 from ...ext import errors
-from .util import APP, SERVICE, meta_from_context, require_pin
+from .util import APP, SERVICE, meta_from_context
+from ...util import require_pin
 
 # Task operations
 TASK_APPLY = 'celery.task.apply'

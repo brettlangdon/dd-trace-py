@@ -8,7 +8,8 @@ import wrapt
 from ddtrace import Pin
 from ddtrace.ext import AppTypes
 from .task import patch_task, unpatch_task
-from .util import APP, SERVICE, require_pin
+from .util import APP, SERVICE
+from ...util import require_pin
 
 
 def patch_app(app, pin=None):

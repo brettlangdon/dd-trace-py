@@ -2,18 +2,19 @@ import flask
 import flask.templating
 import wrapt
 
-from .templating import _patch_render
 from ...compat import to_unicode
 from ...ext import AppTypes
 from ...ext import http, errors
 from ...pin import Pin
+from ...util import require_pin
 
 SERVICE = 'flask'
 APP = 'flask'
 
 
-def patch(app=None, pin=None):
-    """"""
+def patch_app(app=None, pin=None):
+    """ Patch either a specific Flask instance or the base flask.Flask class for tracing"""
+    # Use the base class if we don't have an instance
     app = app or flask.Flask
 
     pin = pin or Pin(service=SERVICE, app=APP, app_type=AppTypes.web)
@@ -30,25 +31,25 @@ def patch(app=None, pin=None):
         if isinstance(method, wrapt.ObjectProxy):
             continue
 
-        setattr(flask.Flask, method_name, wrapt.BoundFunctionWrapper(method, app, wrapper))
+        setattr(app, method_name, wrapt.BoundFunctionWrapper(method, app, wrapper))
 
-    _patch_render(pin=pin)
-
+    # Attach the pin to this instance
     pin.onto(app)
     return app
 
+def unpatch_app(app=None):
+    app = app or flask.Flask
 
-def require_pin(decorated):
-    """ decorator for extracting the `Pin` from a wrapped method """
-    def wrapper(wrapped, instance, args, kwargs):
-        pin = Pin.get_from(instance)
-        # Execute the original method if pin is not enabled
-        if not pin or not pin.enabled():
-            return wrapped(*args, **kwargs)
+    unpatch_methods = ['full_dispatch_request']
+    for method_name in unpatch_methods:
+        method = getattr(app, method_name, None)
+        if method is None:
+            continue
 
-        # Execute our decorated function
-        return decorated(pin, wrapped, instance, args, kwargs)
-    return wrapper
+        if not isinstance(method, wrapt.ObjectProxy):
+            continue
+
+        setattr(app, method_name, method.__wrapped__)
 
 
 @require_pin
@@ -59,7 +60,7 @@ def _full_dispatch_request(pin, func, app, args, kwargs):
         exception = None
         try:
             response = func(*args, **kwargs)
-        except Exception, exception:
+        except Exception as exception:
             raise
         finally:
             try:
