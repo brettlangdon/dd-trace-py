@@ -13,6 +13,9 @@ import threading
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
+    'boto': False,
+    'botocore': False,
+    'bottle': False,
     'cassandra': True,
     'celery': True,
     'elasticsearch': True,
@@ -26,9 +29,13 @@ PATCH_MODULES = {
     'sqlalchemy': False,  # Prefer DB client instrumentation
     'sqlite3': True,
     'aiohttp': True,  # requires asyncio (Python 3.4+)
-    'django': False,
-    'flask': False,
-    'pylons': False,
+
+    # Ignore some web framework integrations that might be configured explicitly in code
+    "django": False,
+    "flask": False,
+    "falcon": False,
+    "pylons": False,
+    "pyramid": False,
 }
 
 _LOCK = threading.Lock()

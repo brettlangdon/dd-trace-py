@@ -5,7 +5,6 @@ import time
 import psycopg2
 from psycopg2 import extras
 from nose.tools import eq_
-from unittest import SkipTest
 
 # project
 from ddtrace.contrib.psycopg import connection_factory
@@ -83,6 +82,24 @@ class PsycopgCore(object):
         eq_(span.meta["out.port"], TEST_PORT)
         eq_(span.span_type, "sql")
 
+    def test_cursor_ctx_manager(self):
+        # ensure cursors work with context managers
+        # https://github.com/DataDog/dd-trace-py/issues/228
+
+        conn, tracer = self._get_conn_and_tracer()
+        t = type(conn.cursor())
+        with conn.cursor() as cur:
+            assert t == type(cur), "%s != %s" % (t, type(cur))
+            cur.execute(query="select 'blah'")
+            rows = cur.fetchall()
+            assert len(rows) == 1, row
+            assert rows[0][0] == 'blah'
+
+        spans = tracer.writer.pop()
+        assert len(spans) == 1
+        span = spans[0]
+        eq_(span.name, "postgres.query")
+
     def test_disabled_execute(self):
         conn, tracer = self._get_conn_and_tracer()
         tracer.enabled = False
@@ -99,7 +116,6 @@ class PsycopgCore(object):
         extras.register_uuid(conn_or_curs=conn)
 
     def test_connect_factory(self):
-        raise SkipTest("Service metadata for psycopg2 patching isn't implemented yet")
         tracer = get_dummy_tracer()
 
         services = ["db", "another"]
