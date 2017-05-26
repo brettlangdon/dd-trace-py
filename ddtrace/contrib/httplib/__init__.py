@@ -9,11 +9,21 @@ Usage::
     patch(httplib=True)
 
     # Python 2
+    from ddtrace import Pin
+    import httplib
     import urllib
+
+    # Use a Pin to specify metadata for all http requests
+    Pin.override(httplib, service='httplib')
     resp = urllib.urlopen('http://www.datadog.com/')
 
     # Python 3
+    from ddtrace import Pin
+    import http.client
     import urllib.request
+
+    # Use a Pin to specify metadata for all http requests
+    Pin.override(http.client, service='httplib')
     resp = urllib.request.urlopen('http://www.datadog.com/')
 
 """

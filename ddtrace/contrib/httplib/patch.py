@@ -8,6 +8,7 @@ import wrapt
 import ddtrace
 from ...compat import httplib, PY2
 from ...ext import http as ext_http
+from ...pin import Pin
 from ...util import unwrap as _u
 
 
@@ -18,10 +19,8 @@ log = logging.getLogger(__name__)
 
 def _wrap_getresponse(func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
-    tracer = getattr(instance, 'datadog_tracer', ddtrace.tracer)
-
-    # DEV: We explicitly set the instance tracer to `None` when using HTTPConnection internally
-    if not tracer or not tracer.enabled:
+    pin = Pin.get_from(httplib)
+    if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
     resp = None
@@ -47,15 +46,13 @@ def _wrap_getresponse(func, instance, args, kwargs):
 
 def _wrap_putrequest(func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
-    tracer = getattr(instance, 'datadog_tracer', ddtrace.tracer)
-
-    # DEV: We explicitly set the instance tracer to `None` when using HTTPConnection internally
-    if not tracer or not tracer.enabled:
+    pin = Pin.get_from(httplib)
+    if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
     try:
         # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
-        span = tracer.trace(span_name, span_type=ext_http.TYPE)
+        span = pin.tracer.trace(span_name, span_type=ext_http.TYPE)
         setattr(instance, '_datadog_span', span)
 
         method, path = args[:2]
@@ -78,10 +75,12 @@ def patch():
         return
     setattr(httplib, '__datadog_patch', True)
 
+    # Patch the desired methods
     setattr(httplib.HTTPConnection, 'getresponse',
             wrapt.FunctionWrapper(httplib.HTTPConnection.getresponse, _wrap_getresponse))
     setattr(httplib.HTTPConnection, 'putrequest',
             wrapt.FunctionWrapper(httplib.HTTPConnection.putrequest, _wrap_putrequest))
+    Pin(app='httplib', service=None, app_type=ext_http.TYPE).onto(httplib)
 
 
 def unpatch():
