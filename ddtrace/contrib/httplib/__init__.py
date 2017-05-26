@@ -1,17 +1,12 @@
 """
 Patch the built-in httplib/http.client libraries to trace all HTTP calls.
 
-Patched modules:
-
- - httplib.HTTPConnection (Python 2)
- - httplib.client.HTTPConnection (Python 3)
-
 
 Usage::
 
     # Patch all supported modules/functions
-    from ddtrace.contrib.httplib import patch
-    patch()
+    from ddtrace import patch
+    patch(httplib=True)
 
     # Python 2
     import urllib
