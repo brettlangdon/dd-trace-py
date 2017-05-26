@@ -42,6 +42,9 @@ class TraceMiddleware(object):
             self.app.logger.info(_blinker_not_installed_msg)
         self.use_signals = use_signals and signals.signals_available
 
+        # our signal receivers
+        self._receivers = []
+
         # instrument request timings
         timing_signals = {
             'request_started': self._request_started,
@@ -81,7 +84,12 @@ class TraceMiddleware(object):
                 connected = False
                 log.warn("trying to instrument missing signal %s", name)
                 continue
-            s.connect(handler, sender=self.app)
+            # we should connect to the signal without using weak references
+            # otherwise they will be garbage collected and our handlers
+            # will be disconnected after the first call; for more details check:
+            # https://github.com/jek/blinker/blob/207446f2d97/blinker/base.py#L106-L108
+            s.connect(handler, sender=self.app, weak=False)
+            self._receivers.append(handler)
         return connected
 
     # common methods
@@ -103,6 +111,7 @@ class TraceMiddleware(object):
             if span.sampled:
                 error = 0
                 code = response.status_code if response else None
+                method = request.method if request else None
 
                 # if we didn't get a response, but we did get an exception, set
                 # codes accordingly.
@@ -118,6 +127,7 @@ class TraceMiddleware(object):
                 span.resource = compat.to_unicode(resource).lower()
                 span.set_tag(http.URL, compat.to_unicode(request.base_url or ''))
                 span.set_tag(http.STATUS_CODE, code)
+                span.set_tag(http.METHOD, method)
                 span.error = error
             span.finish()
             # Clear our span just in case.

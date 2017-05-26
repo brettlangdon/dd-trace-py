@@ -67,7 +67,8 @@ class Tracer(object):
         """
         return self._context_provider(*args, **kwargs)
 
-    def configure(self, enabled=None, hostname=None, port=None, sampler=None, context_provider=None):
+    def configure(self, enabled=None, hostname=None, port=None, sampler=None,
+                context_provider=None, wrap_executor=None):
         """
         Configure an existing Tracer the easy way.
         Allow to configure or reconfigure a Tracer instance.
@@ -78,8 +79,11 @@ class Tracer(object):
         :param int port: Port of the Trace Agent
         :param object sampler: A custom Sampler instance
         :param object context_provider: The ``ContextProvider`` that will be used to retrieve
-            automatically the current call context
-
+            automatically the current call context. This is an advanced option that usually
+            doesn't need to be changed from the default value
+        :param object wrap_executor: callable that is used when a function is decorated with
+            ``Tracer.wrap()``. This is an advanced option that usually doesn't need to be changed
+            from the default value
         """
         if enabled is not None:
             self.enabled = enabled
@@ -92,6 +96,9 @@ class Tracer(object):
 
         if context_provider is not None:
             self._context_provider = context_provider
+
+        if wrap_executor is not None:
+            self._wrap_executor = wrap_executor
 
     def start_span(self, name, child_of=None, service=None, resource=None, span_type=None):
         """
@@ -175,13 +182,14 @@ class Tracer(object):
         You must call `finish` on all spans, either directly or with a context
         manager::
 
-        >>> span = tracer.trace("web.request")
-            try:
-                # do something
-            finally:
-                span.finish()
-        >>> with tracer.trace("web.request") as span:
-                # do something
+            >>> span = tracer.trace("web.request")
+                try:
+                    # do something
+                finally:
+                    span.finish()
+
+            >>> with tracer.trace("web.request") as span:
+                    # do something
 
         Trace will store the current active span and subsequent child traces will
         become its children::
@@ -272,6 +280,9 @@ class Tracer(object):
         """
         A decorator used to trace an entire function. If the traced function
         is a coroutine, it traces the coroutine execution when is awaited.
+        If a ``wrap_executor`` callable has been provided in the ``Tracer.configure()``
+        method, it will be called instead of the default one when the function
+        decorator is invoked.
 
         :param str name: the name of the operation being traced. If not set,
                          defaults to the fully qualified function name.
@@ -328,6 +339,19 @@ class Tracer(object):
             else:
                 @functools.wraps(f)
                 def func_wrapper(*args, **kwargs):
+                    # if a wrap executor has been configured, it is used instead
+                    # of the default tracing function
+                    if getattr(self, '_wrap_executor', None):
+                        return self._wrap_executor(
+                            self,
+                            f, args, kwargs,
+                            span_name,
+                            service=service,
+                            resource=resource,
+                            span_type=span_type,
+                        )
+
+                    # otherwise fallback to a default tracing
                     with self.trace(span_name, service=service, resource=resource, span_type=span_type):
                         return f(*args, **kwargs)
 

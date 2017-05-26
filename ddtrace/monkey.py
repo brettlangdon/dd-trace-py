@@ -13,6 +13,9 @@ import threading
 
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
+    'boto': False,
+    'botocore': False,
+    'bottle': False,
     'cassandra': True,
     'celery': True,
     'elasticsearch': True,
@@ -26,22 +29,30 @@ PATCH_MODULES = {
     'sqlalchemy': False,  # Prefer DB client instrumentation
     'sqlite3': True,
     'aiohttp': True,  # requires asyncio (Python 3.4+)
-    'django': False,
-    'flask': False,
-    'pylons': False,
+
+    # Ignore some web framework integrations that might be configured explicitly in code
+    "django": False,
+    "flask": False,
+    "falcon": False,
+    "pylons": False,
+    "pyramid": False,
 }
 
 _LOCK = threading.Lock()
 _PATCHED_MODULES = set()
 
 
+class PatchException(Exception):
+    """Wraps regular `Exception` class when patching modules"""
+    pass
+
+
 def patch_all(**patch_modules):
-    """ Automatically patches all available modules.
+    """Automatically patches all available modules.
 
-    :param dict **patch_modules: Override whether particular modules
-            are patched or not.
+    :param dict \**patch_modules: Override whether particular modules are patched or not.
 
-    >>> patch_all({'redis': False, 'cassandra': False})
+        >>> patch_all({'redis': False, 'cassandra': False})
     """
     modules = PATCH_MODULES.copy()
     modules.update(patch_modules)
@@ -49,11 +60,12 @@ def patch_all(**patch_modules):
     patch(raise_errors=False, **modules)
 
 def patch(raise_errors=True, **patch_modules):
-    """ Patch a set of given modules
+    """Patch only a set of given modules.
 
     :param bool raise_errors: Raise error if one patch fail.
-    :param dict **patch_modules: List of modules to patch.
-        Example: {'psycopg': True, 'elasticsearch': True}
+    :param dict \**patch_modules: List of modules to patch.
+
+        >>> patch({'psycopg': True, 'elasticsearch': True})
     """
     modules = [m for (m, should_patch) in patch_modules.items() if should_patch]
     count = 0
@@ -98,8 +110,16 @@ def _patch_module(module):
             logging.debug("already patched: %s", path)
             return False
 
-        imported_module = importlib.import_module(path)
-        imported_module.patch()
+        try:
+            imported_module = importlib.import_module(path)
+            imported_module.patch()
+        except ImportError:
+            # if the import fails, the integration is not available
+            raise PatchException('integration not available')
+        except AttributeError:
+            # if patch() is not available in the module, it means
+            # that the library is not installed in the environment
+            raise PatchException('module not installed')
 
         _PATCHED_MODULES.add(module)
         return True

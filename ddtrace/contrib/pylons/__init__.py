@@ -15,7 +15,16 @@ the following::
 Then you can define your routes and views as usual.
 """
 
-from .middleware import PylonsTraceMiddleware
+from ..util import require_modules
 
+required_modules = ['pylons.wsgiapp']
 
-__all__ = ['PylonsTraceMiddleware']
+with require_modules(required_modules) as missing_modules:
+    if not missing_modules:
+        from .middleware import PylonsTraceMiddleware
+        from .patch import patch
+
+        __all__ = [
+            'patch',
+            'PylonsTraceMiddleware',
+        ]
