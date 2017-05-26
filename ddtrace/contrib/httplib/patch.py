@@ -47,7 +47,7 @@ def _wrap_getresponse(func, instance, args, kwargs):
 def _wrap_putrequest(func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
     pin = Pin.get_from(httplib)
-    if not pin or not pin.enabled():
+    if should_skip_request(pin, instance):
         return func(*args, **kwargs)
 
     try:
@@ -67,6 +67,15 @@ def _wrap_putrequest(func, instance, args, kwargs):
         log.debug('error applying request tags', exc_info=True)
 
     return func(*args, **kwargs)
+
+
+def should_skip_request(pin, request):
+    """Helper to determine if the provided request should be traced"""
+    if not pin or not pin.enabled():
+        return True
+
+    api = pin.tracer.writer.api
+    return request.host == api.hostname and request.port == api.port
 
 
 def patch():
