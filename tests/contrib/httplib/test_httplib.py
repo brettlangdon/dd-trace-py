@@ -43,10 +43,19 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
         """Helper method to decode a string or byte object to a string"""
         return value.decode('utf-8')
 
+    def get_http_connection(self, *args, **kwargs):
+        conn = httplib.HTTPConnection(*args, **kwargs)
+        Pin.override(conn, tracer=self.tracer)
+        return conn
+
+    def get_https_connection(self, *args, **kwargs):
+        conn = httplib.HTTPSConnection(*args, **kwargs)
+        Pin.override(conn, tracer=self.tracer)
+        return conn
+
     def setUp(self):
         patch()
         self.tracer = get_dummy_tracer()
-        Pin.override(httplib, tracer=self.tracer)
 
     def tearDown(self):
         unpatch()
@@ -56,6 +65,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
         When patching httplib
             we patch the correct module/methods
         """
+        self.assertIsInstance(httplib.HTTPConnection.__init__, wrapt.BoundFunctionWrapper)
         self.assertIsInstance(httplib.HTTPConnection.putrequest, wrapt.BoundFunctionWrapper)
         self.assertIsInstance(httplib.HTTPConnection.getresponse, wrapt.BoundFunctionWrapper)
 
@@ -64,10 +74,12 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
         When unpatching httplib
             we restore the correct module/methods
         """
+        original_init = httplib.HTTPConnection.__init__.__wrapped__
         original_putrequest = httplib.HTTPConnection.putrequest.__wrapped__
         original_getresponse = httplib.HTTPConnection.getresponse.__wrapped__
         unpatch()
 
+        self.assertEqual(httplib.HTTPConnection.__init__, original_init)
         self.assertEqual(httplib.HTTPConnection.putrequest, original_putrequest)
         self.assertEqual(httplib.HTTPConnection.getresponse, original_getresponse)
 
@@ -83,26 +95,28 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
             with a disabled Pin and internal request
                 returns True
         """
-        pin = Pin.get_from(httplib)
-
         # Enabled Pin and non-internal request
         self.tracer.enabled = True
-        request = httplib.HTTPConnection('httpstat.us')
+        request = self.get_http_connection('httpstat.us')
+        pin = Pin.get_from(request)
         self.assertFalse(should_skip_request(pin, request))
 
         # Disabled Pin and non-internal request
         self.tracer.enabled = False
-        request = httplib.HTTPConnection('httpstat.us')
+        request = self.get_http_connection('httpstat.us')
+        pin = Pin.get_from(request)
         self.assertTrue(should_skip_request(pin, request))
 
         # Enabled Pin and internal request
         self.tracer.enabled = True
-        request = httplib.HTTPConnection(self.tracer.writer.api.hostname, self.tracer.writer.api.port)
+        request = self.get_http_connection(self.tracer.writer.api.hostname, self.tracer.writer.api.port)
+        pin = Pin.get_from(request)
         self.assertTrue(should_skip_request(pin, request))
 
         # Disabled Pin and internal request
         self.tracer.enabled = False
-        request = httplib.HTTPConnection(self.tracer.writer.api.hostname, self.tracer.writer.api.port)
+        request = self.get_http_connection(self.tracer.writer.api.hostname, self.tracer.writer.api.port)
+        pin = Pin.get_from(request)
         self.assertTrue(should_skip_request(pin, request))
 
     def test_httplib_request_get_request(self):
@@ -111,7 +125,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
             we return the original response
             we capture a span for the request
         """
-        conn = httplib.HTTPConnection('httpstat.us')
+        conn = self.get_http_connection('httpstat.us')
         with contextlib.closing(conn):
             conn.request('GET', '/200')
             resp = conn.getresponse()
@@ -134,13 +148,43 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
             }
         )
 
+    def test_httplib_request_get_request_https(self):
+        """
+        When making a GET request via httplib.HTTPConnection.request
+            when making an HTTPS connection
+                we return the original response
+                we capture a span for the request
+        """
+        conn = self.get_https_connection('httpbin.org')
+        with contextlib.closing(conn):
+            conn.request('GET', '/status/200')
+            resp = conn.getresponse()
+            self.assertEqual(self.to_str(resp.read()), '')
+            self.assertEqual(resp.status, 200)
+
+        spans = self.tracer.writer.pop()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertEqual(span.span_type, 'http')
+        self.assertIsNone(span.service)
+        self.assertEqual(span.name, self.SPAN_NAME)
+        self.assertEqual(span.error, 0)
+        self.assertDictEqual(
+            span.meta,
+            {
+                'http.method': 'GET',
+                'http.status_code': '200',
+                'http.url': 'https://httpbin.org/status/200',
+            }
+        )
+
     def test_httplib_request_post_request(self):
         """
         When making a POST request via httplib.HTTPConnection.request
             we return the original response
             we capture a span for the request
         """
-        conn = httplib.HTTPConnection('httpstat.us')
+        conn = self.get_http_connection('httpstat.us')
         with contextlib.closing(conn):
             conn.request('POST', '/200', body='key=value')
             resp = conn.getresponse()
@@ -168,7 +212,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
         When making a GET request with a query string via httplib.HTTPConnection.request
             we capture a the entire url in the span
         """
-        conn = httplib.HTTPConnection('httpstat.us')
+        conn = self.get_http_connection('httpstat.us')
         with contextlib.closing(conn):
             conn.request('GET', '/200?key=value&key2=value2')
             resp = conn.getresponse()
@@ -200,7 +244,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
                 we capture the correct span tags
         """
         try:
-            conn = httplib.HTTPConnection('httpstat.us')
+            conn = self.get_http_connection('httpstat.us')
             with contextlib.closing(conn):
                 conn.request('GET', '/500')
                 conn.getresponse()
@@ -229,7 +273,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
                 we capture the correct span tags
         """
         try:
-            conn = httplib.HTTPConnection('httpstat.us')
+            conn = self.get_http_connection('httpstat.us')
             with contextlib.closing(conn):
                 conn.request('GET', '/404')
                 conn.getresponse()
@@ -256,7 +300,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
                 we do not capture any spans
         """
         self.tracer.enabled = False
-        conn = httplib.HTTPConnection('httpstat.us')
+        conn = self.get_http_connection('httpstat.us')
         with contextlib.closing(conn):
             conn.request('GET', '/200')
             resp = conn.getresponse()
@@ -286,6 +330,28 @@ class HTTPLibTestCase(HTTPLibBaseMixin, unittest.TestCase):
         self.assertEqual(span.get_tag('http.method'), 'GET')
         self.assertEqual(span.get_tag('http.status_code'), '200')
         self.assertEqual(span.get_tag('http.url'), 'http://httpstat.us/200')
+
+    def test_urllib_request_https(self):
+        """
+        When making a request via urllib.request.urlopen
+           when making an HTTPS connection
+               we return the original response
+               we capture a span for the request
+        """
+        resp = urlopen('https://httpbin.org/status/200')
+        self.assertEqual(self.to_str(resp.read()), '')
+        self.assertEqual(resp.getcode(), 200)
+
+        spans = self.tracer.writer.pop()
+        self.assertEqual(len(spans), 1)
+        span = spans[0]
+        self.assertEqual(span.span_type, 'http')
+        self.assertIsNone(span.service)
+        self.assertEqual(span.name, self.SPAN_NAME)
+        self.assertEqual(span.error, 0)
+        self.assertEqual(span.get_tag('http.method'), 'GET')
+        self.assertEqual(span.get_tag('http.status_code'), '200')
+        self.assertEqual(span.get_tag('http.url'), 'https://httpbin.org/status/200')
 
     def test_urllib_request_object(self):
         """
@@ -358,3 +424,25 @@ if PY2:
             self.assertEqual(span.get_tag('http.method'), 'GET')
             self.assertEqual(span.get_tag('http.status_code'), '200')
             self.assertEqual(span.get_tag('http.url'), 'http://httpstat.us/200')
+
+        def test_urllib_request_https(self):
+            """
+            When making a request via urllib.urlopen
+               when making an HTTPS connection
+                   we return the original response
+                   we capture a span for the request
+            """
+            resp = urllib.urlopen('https://httpbin.org/status/200')
+            self.assertEqual(resp.read(), '')
+            self.assertEqual(resp.getcode(), 200)
+
+            spans = self.tracer.writer.pop()
+            self.assertEqual(len(spans), 1)
+            span = spans[0]
+            self.assertEqual(span.span_type, 'http')
+            self.assertIsNone(span.service)
+            self.assertEqual(span.name, 'httplib.request')
+            self.assertEqual(span.error, 0)
+            self.assertEqual(span.get_tag('http.method'), 'GET')
+            self.assertEqual(span.get_tag('http.status_code'), '200')
+            self.assertEqual(span.get_tag('http.url'), 'https://httpbin.org/status/200')
