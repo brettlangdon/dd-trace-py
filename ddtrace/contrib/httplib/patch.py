@@ -16,9 +16,14 @@ span_name = 'httplib.request' if PY2 else 'http.client.request'
 log = logging.getLogger(__name__)
 
 
+def _wrap_init(func, instance, args, kwargs):
+    Pin(app='httplib', service=None, app_type=ext_http.TYPE).onto(instance)
+    return func(*args, **kwargs)
+
+
 def _wrap_getresponse(func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
-    pin = Pin.get_from(httplib)
+    pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
@@ -45,7 +50,7 @@ def _wrap_getresponse(func, instance, args, kwargs):
 
 def _wrap_putrequest(func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
-    pin = Pin.get_from(httplib)
+    pin = Pin.get_from(instance)
     if should_skip_request(pin, instance):
         return func(*args, **kwargs)
 
@@ -84,11 +89,12 @@ def patch():
     setattr(httplib, '__datadog_patch', True)
 
     # Patch the desired methods
+    setattr(httplib.HTTPConnection, '__init__',
+            wrapt.FunctionWrapper(httplib.HTTPConnection.__init__, _wrap_init))
     setattr(httplib.HTTPConnection, 'getresponse',
             wrapt.FunctionWrapper(httplib.HTTPConnection.getresponse, _wrap_getresponse))
     setattr(httplib.HTTPConnection, 'putrequest',
             wrapt.FunctionWrapper(httplib.HTTPConnection.putrequest, _wrap_putrequest))
-    Pin(app='httplib', service=None, app_type=ext_http.TYPE).onto(httplib)
 
 
 def unpatch():
@@ -97,5 +103,6 @@ def unpatch():
         return
     setattr(httplib, '__datadog_patch', False)
 
+    _u(httplib.HTTPConnection, '__init__')
     _u(httplib.HTTPConnection, 'getresponse')
     _u(httplib.HTTPConnection, 'putrequest')
