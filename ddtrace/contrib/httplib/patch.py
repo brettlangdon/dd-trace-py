@@ -5,7 +5,6 @@ import logging
 import wrapt
 
 # Project
-import ddtrace
 from ...compat import httplib, PY2
 from ...ext import http as ext_http
 from ...pin import Pin
